@@ -1,8 +1,9 @@
+// CleanMediaRenamer
 // rename_sanitize.cpp
-// C++17 - Parcours récursif, remplace ['_', '-', '.'] par ' '
-// SAUF le dernier '.' (extension) pour les fichiers.
-// + Supprime des tags "release/téléchargement" (bluray, dvdrip, vff, etc.)
-// Affiche une ligne par modification et, à la fin, un timer 5s puis "All done" + total.
+// C++17 - Recursive traversal, replaces ['_', '-', '.'] with ' '
+// EXCEPT the last '.' (extension) for files.
+// + Removes common "release/download" tags (bluray, dvdrip, vff, etc.).
+// Prints one line per rename and, at the end, a 5s countdown then "All done" + total.
 
 #include <filesystem>
 #include <iostream>
@@ -42,7 +43,7 @@ static fs::path get_self_executable_path() {
 	_NSGetExecutablePath(nullptr, &size);
 	std::string buf(size, '\0');
 	if (_NSGetExecutablePath(buf.data(), &size) != 0) return {};
-	// buf peut contenir des '\0' en fin
+	// buf may contain trailing '\0'
 	return fs::path(buf.c_str());
 #else
 	// Linux: /proc/self/exe
@@ -107,22 +108,22 @@ static bool is_alpha_char(CharT c) {
 	}
 }
 
-// "Phrase case" : tout en minuscule, puis 1ère lettre alphabétique en majuscule
+// "Sentence case": lowercase everything, then uppercase the first alphabetic letter.
 template <typename StringT>
 static StringT phrase_case(StringT s) {
 	using C = typename StringT::value_type;
 
-	// tout en minuscule
+	// Lowercase everything
 	for (auto& ch : s) ch = to_lower_char(ch);
 
-	// 1ère lettre alphabétique en majuscule
+	// Uppercase the first alphabetic letter
 	for (size_t i = 0; i < s.size(); ++i) {
 		if (is_space(s[i])) continue;
 		if (is_alpha_char(s[i])) {
 			s[i] = to_upper_char(s[i]);
 			break;
 		}
-		// si c'est un chiffre/punct, on continue jusqu'à trouver une lettre
+		// If it's a digit/punctuation, keep searching for the first letter
 	}
 	return s;
 }
@@ -135,7 +136,7 @@ static StringT to_lower_copy(const StringT& s) {
 	return out;
 }
 
-// Supprime ponctuation / symboles en bord (ex: "[BluRay]" -> "BluRay")
+// Strip punctuation/symbols at the edges (e.g., "[BluRay]" -> "BluRay")
 template <typename StringT>
 static StringT strip_non_alnum_edges(const StringT& s) {
 	using C = typename StringT::value_type;
@@ -155,7 +156,7 @@ static StringT keep_inner_apostrophes_only(StringT s) {
 			return ch == C('\'');
 		}
 		else {
-			// ' et apostrophe typographique ’ (U+2019) en wchar_t
+			// ' and typographic apostrophe ’ (U+2019) in wchar_t
 			return ch == C('\'') || ch == static_cast<C>(0x2019);
 		}
 		};
@@ -167,7 +168,7 @@ static StringT keep_inner_apostrophes_only(StringT s) {
 		C ch = s[i];
 
 		if (is_apostrophe(ch)) {
-			// On garde seulement si entourée par 2 alphanums (ex: D'Après)
+			// Keep only if surrounded by two alphanumerics (e.g., D'Après)
 			bool keep = false;
 			if (i > 0 && i + 1 < s.size()) {
 				if (is_alnum_char(s[i - 1]) && is_alnum_char(s[i + 1])) {
@@ -175,7 +176,7 @@ static StringT keep_inner_apostrophes_only(StringT s) {
 				}
 			}
 			if (keep) out.push_back(ch);
-			continue; // sinon on la supprime
+			continue; // otherwise drop it
 		}
 
 		out.push_back(ch);
@@ -227,17 +228,17 @@ template <typename CharT>
 static const std::unordered_set<std::basic_string<CharT>>& single_tags() {
 	using S = std::basic_string<CharT>;
 	static const std::vector<const char*> kSingleTags = {
-		// sources / qualités
+		// sources / quality
 		"bluray","blu-ray","bdrip","bd-rip","brrip",
 		"dvdrip","dvd-rip","dvrip","tvrip","hdrip","hd-rip",
 		"webrip","web-rip","webdl","web-dl","web",
 		"hdtv","cam","ts","telesync","tc","telecine","scr","screener",
 		"remux",
 
-		// langues / sous-titres
+		// languages / subtitles
 		"vf","vff","vfi","truefrench","true-french","french",
 		"vostfr","vost","subfrench","subs","sub","stfr",
-		"multi", "pophd","tyhd",
+		"multi","pophd","tyhd",
 		"amzn","nf","dsnp","hmax","atvp","hulu",
 
 		// codecs / encodes
@@ -246,13 +247,14 @@ static const std::unordered_set<std::basic_string<CharT>>& single_tags() {
 		// audio
 		"aac","ac3","eac3","ddp","dd","dts","dtshd","truehd","atmos","flac","mp3",
 
-		// divers tags courants
+		// misc common tags
 		"hdr","sdr","10bit","8bit","proper","repack","limited","unrated","extended","internal","readnfo",
 
-		// “download” / sites
+		// download / sites
 		"download","telecharger","ddl","dl",
 
-		"serqph","qtz","notag", "4klight","hdlight", "he",
+		// custom teams / misc
+		"serqph","qtz","notag","4klight","hdlight","he",
 	};
 
 	static const std::unordered_set<S> set = [] {
@@ -273,7 +275,7 @@ template <typename CharT>
 static const std::unordered_set<std::basic_string<CharT>>& phrase2_tags() {
 	using S = std::basic_string<CharT>;
 	static const std::vector<const char*> kPhrase2 = {
-		// variantes éclatées par sanitize: "Blu-Ray" => "Blu Ray"
+		// variants split by sanitize: "Blu-Ray" => "Blu Ray"
 		"blu ray",
 		"web dl",
 		"web rip",
@@ -304,7 +306,7 @@ template <typename CharT>
 static const std::unordered_set<std::basic_string<CharT>>& phrase3_tags() {
 	using S = std::basic_string<CharT>;
 	static const std::vector<const char*> kPhrase3 = {
-		// exemple si tu veux : "multi audio fr" etc (à compléter si besoin)
+		// Example if needed later: "multi audio fr"
 		// "multi audio fr"
 	};
 
@@ -340,7 +342,7 @@ static std::vector<StringT> split_spaces(const StringT& s) {
 	return out;
 }
 
-// Nettoie les tags type BluRay / DVDRip / VFF / 1080p / WEB DL etc.
+// Removes tags like BluRay / DVDRip / VFF / 1080p / WEB DL etc.
 template <typename StringT>
 static StringT remove_release_tags(const StringT& sanitized) {
 	using C = typename StringT::value_type;
@@ -350,7 +352,7 @@ static StringT remove_release_tags(const StringT& sanitized) {
 
 	auto tokens_raw = split_spaces(sanitized);
 
-	// normalise tokens (strip punctuation edges) tout en gardant la version “affichage”
+	// Normalize tokens (strip edge punctuation) while keeping display-friendly tokens
 	std::vector<StringT> tokens;
 	tokens.reserve(tokens_raw.size());
 	for (auto& t : tokens_raw) {
@@ -358,7 +360,7 @@ static StringT remove_release_tags(const StringT& sanitized) {
 		if (!stripped.empty()) tokens.push_back(stripped);
 	}
 
-	// helpers locaux
+	// local helpers
 	auto starts_with = [](const StringT& s, const StringT& prefix) {
 		return s.size() >= prefix.size() && s.compare(0, prefix.size(), prefix) == 0;
 		};
@@ -366,8 +368,8 @@ static StringT remove_release_tags(const StringT& sanitized) {
 		return all_digits(low) && low.size() == 1; // "0".."9"
 		};
 	auto is_audio_base = [&](const StringT& low) {
-		// codecs qui apparaissent souvent avec "2.0", "5.1", "7.1" etc
-		// (après sanitize: "2 0", "5 1", ...)
+		// codecs often followed by "2.0", "5.1", "7.1", etc.
+		// (after sanitize: "2 0", "5 1", ...)
 		return (low == StringT{ C('d'),C('d'),C('p') } ||
 			low == StringT{ C('e'),C('a'),C('c'),C('3') } ||
 			low == StringT{ C('a'),C('c'),C('3') } ||
@@ -379,10 +381,10 @@ static StringT remove_release_tags(const StringT& sanitized) {
 	kept.reserve(tokens.size());
 
 	for (size_t i = 0; i < tokens.size(); ) {
-		// on compare en lower
+		// compare in lowercase
 		StringT t0_low = to_lower_copy(tokens[i]);
 
-		// match phrase 3 mots
+		// match 3-word phrases
 		if (i + 2 < tokens.size()) {
 			StringT a = to_lower_copy(tokens[i]);
 			StringT b = to_lower_copy(tokens[i + 1]);
@@ -391,7 +393,7 @@ static StringT remove_release_tags(const StringT& sanitized) {
 			if (p3.find(phrase3) != p3.end()) { i += 3; continue; }
 		}
 
-		// match phrase 2 mots
+		// match 2-word phrases
 		if (i + 1 < tokens.size()) {
 			StringT a = to_lower_copy(tokens[i]);
 			StringT b = to_lower_copy(tokens[i + 1]);
@@ -399,13 +401,13 @@ static StringT remove_release_tags(const StringT& sanitized) {
 			if (p2.find(phrase2) != p2.end()) { i += 2; continue; }
 		}
 
-		// --- NEW: "DDP2.0" => "ddp2 0", "DDP5.1" => "ddp5 1", "DTS7.1" => "dts7 1" ---
-		// token courant = ddpX / dtsX (X = digits), on saute aussi le token suivant si "0".."9"
+		// "DDP2.0" => "ddp2 0", "DDP5.1" => "ddp5 1", "DTS7.1" => "dts7 1"
+		// Current token = ddpX / dtsX (X = digits), also skip next token if it's "0".."9"
 		if (starts_with(t0_low, StringT{ C('d'),C('d'),C('p') }) && t0_low.size() > 3 && all_digits(t0_low.substr(3))) {
 			++i; // skip "ddpX"
 			if (i < tokens.size()) {
 				StringT nxt = to_lower_copy(tokens[i]);
-				if (is_one_digit(nxt)) ++i; // skip "0" ou "1"
+				if (is_one_digit(nxt)) ++i; // skip "0" or "1"
 			}
 			continue;
 		}
@@ -418,11 +420,11 @@ static StringT remove_release_tags(const StringT& sanitized) {
 			continue;
 		}
 
-		// --- NEW: "EAC3 5.1" => "eac3 5 1" / "DDP 2.0" => "ddp 2 0" ---
-		// si on rencontre un codec audio "base", et qu'il est suivi de 1 ou 2 tokens digit, on les supprime aussi
+		// "EAC3 5.1" => "eac3 5 1" / "DDP 2.0" => "ddp 2 0"
+		// If we encounter an audio codec "base" and it's followed by 1-2 digit tokens, skip them too
 		if (is_audio_base(t0_low)) {
-			++i; // skip le codec (eac3/ac3/ddp/dts/aac)
-			// saute 1 à 2 digits (2 0 / 5 1 / 7 1)
+			++i; // skip codec (eac3/ac3/ddp/dts/aac)
+			// skip 1 to 2 digits (2 0 / 5 1 / 7 1)
 			if (i < tokens.size()) {
 				StringT d1 = to_lower_copy(tokens[i]);
 				if (is_one_digit(d1)) {
@@ -444,7 +446,7 @@ static StringT remove_release_tags(const StringT& sanitized) {
 			continue;
 		}
 
-		// channels (2ch, 6ch, 8ch...)
+		// Channels (2ch, 6ch, 8ch...)
 		if (t0_low.size() > 2 &&
 			t0_low[t0_low.size() - 2] == C('c') &&
 			t0_low[t0_low.size() - 1] == C('h')) {
@@ -455,17 +457,17 @@ static StringT remove_release_tags(const StringT& sanitized) {
 			}
 		}
 
-		// tokens type 1080p / 1920x1080 / 4k
+		// Tokens like 1080p / 1920x1080 / 4k
 		if (is_resolution_token(t0_low)) { ++i; continue; }
 
-		// single tag blacklist
+		// Single-token blacklist
 		if (singles.find(t0_low) != singles.end()) { ++i; continue; }
 
 		kept.push_back(tokens[i]);
 		++i;
 	}
 
-	// rejoin
+	// Re-join
 	StringT joined;
 	for (size_t i = 0; i < kept.size(); ++i) {
 		if (i) joined.push_back(C(' '));
@@ -490,7 +492,7 @@ static StringT sanitize_all(const StringT& in, bool replace_dots) {
 		}
 	}
 
-	// collapse espaces + trim
+	// Collapse spaces + trim
 	StringT out;
 	out.reserve(tmp.size());
 
@@ -508,7 +510,7 @@ static StringT sanitize_all(const StringT& in, bool replace_dots) {
 	}
 	while (!out.empty() && out.back() == C(' ')) out.pop_back();
 
-	// évite fin problématique (Windows) + noms vides
+	// Avoid problematic endings (Windows) + empty names
 	while (!out.empty() && (out.back() == C(' ') || out.back() == C('.'))) out.pop_back();
 	if (out.empty()) {
 		out = StringT{ C('u'),C('n'),C('n'),C('a'),C('m'),C('e'),C('d') };
@@ -521,16 +523,16 @@ static StringT sanitize_and_clean(const StringT& in, bool replace_dots) {
 	StringT s = sanitize_all(in, replace_dots);
 	s = remove_release_tags(s);
 
-	// re-collapse/trim au cas où la suppression laisse des espaces bizarres
+	// Re-collapse/trim in case tag removal introduced weird spacing
 	s = sanitize_all(s, /*replace_dots=*/false);
 
-	// Conserve ' seulement si entre 2 alphanums (D'Après), sinon supprime
+	// Keep apostrophe only if between two alphanumerics (D'Après), otherwise remove it
 	s = keep_inner_apostrophes_only(std::move(s));
 
-	// IMPORTANT: recollapse après suppression d'apostrophes isolées
+	// IMPORTANT: re-collapse after removing isolated apostrophes
 	s = sanitize_all(s, /*replace_dots=*/false);
 
-	// Première lettre majuscule, reste minuscule
+	// Sentence case: first letter uppercase, rest lowercase
 	s = phrase_case(std::move(s));
 
 	return s;
@@ -541,7 +543,7 @@ static fs::path make_unique_target(const fs::path& desired) {
 
 	fs::path parent = desired.parent_path();
 
-	// Insère un suffixe avant extension si présent
+	// Insert a suffix before extension if present
 	if (desired.has_extension()) {
 #ifdef _WIN32
 		std::wstring stem = desired.stem().wstring();
@@ -596,7 +598,7 @@ static fs::path make_temp_name(const fs::path& /*src*/, const fs::path& desired)
 		? desired.extension().wstring()
 		: L"";
 
-	// ex: "Nom.__tmp__.mkv"
+	// e.g., "Name.__tmp__.mkv"
 	std::wstring base = stem + L".__tmp__" + ext;
 	fs::path cand = parent / fs::path(base);
 	if (!fs::exists(cand, ec) && !ec) return cand;
@@ -613,7 +615,7 @@ static fs::path make_temp_name(const fs::path& /*src*/, const fs::path& desired)
 		? desired.extension().string()
 		: "";
 
-	// ex: "Nom.__tmp__.mkv"
+	// e.g., "Name.__tmp__.mkv"
 	std::string base = stem + ".__tmp__" + ext;
 	fs::path cand = parent / base;
 	if (!fs::exists(cand, ec) && !ec) return cand;
@@ -624,14 +626,14 @@ static fs::path make_temp_name(const fs::path& /*src*/, const fs::path& desired)
 	}
 #endif
 
-	// fallback
+	// Fallback
 	return parent / fs::path("__tmp__");
 }
 
 static void rename_entry(const fs::path& p, Stats& st) {
 	std::error_code ec;
 
-	// Ne jamais renommer l'exécutable en cours
+	// Never rename the currently running executable
 	if (!g_self_exe.empty()) {
 		std::error_code ecAbs;
 		fs::path pAbs = normalize_path(p);
@@ -643,7 +645,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 				return;
 			}
 		}
-		// fallback simple (au cas où equivalent échoue)
+		// Simple fallback (if equivalent() fails)
 		if (pAbs == g_self_exe) {
 			st.skipped++;
 			return;
@@ -658,7 +660,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 	fs::path desired;
 
 	if (is_dir) {
-		// Dossier : on remplace tous les '.' aussi
+		// Folder: also replace all '.' characters
 #ifdef _WIN32
 		std::wstring oldName = p.filename().wstring();
 		std::wstring newName = sanitize_and_clean(oldName, /*replace_dots=*/true);
@@ -670,9 +672,9 @@ static void rename_entry(const fs::path& p, Stats& st) {
 #endif
 	}
 	else {
-		// Fichier : on remplace tout dans le stem, extension inchangée (dernier '.')
-		fs::path stem = p.stem();      // ex: "archive.tar"
-		fs::path ext = p.extension(); // ex: ".gz"
+		// File: sanitize the stem; keep extension unchanged (final '.')
+		fs::path stem = p.stem();      // e.g., "archive.tar"
+		fs::path ext = p.extension();  // e.g., ".gz"
 #ifdef _WIN32
 		std::wstring newStem = sanitize_and_clean(stem.wstring(), /*replace_dots=*/true);
 		desired = p.parent_path() / fs::path(newStem + ext.wstring());
@@ -684,8 +686,8 @@ static void rename_entry(const fs::path& p, Stats& st) {
 
 	if (desired == p) { st.skipped++; return; }
 
-	// Si "desired" existe mais correspond au même fichier (cas Windows: changement de casse),
-	// on fait un rename en 2 étapes pour éviter le "(1)".
+	// If "desired" exists but points to the same file (Windows case-only rename),
+	// do a 2-step rename to avoid adding "(1)".
 	std::error_code ecExist;
 	bool existsDesired = fs::exists(desired, ecExist) && !ecExist;
 
@@ -698,7 +700,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 	fs::path target;
 
 	if (sameFile) {
-		// rename en 2 temps: p -> temp -> desired (permet de changer la casse sans suffixe)
+		// Two-step rename: p -> temp -> desired (allows case changes without suffix)
 		fs::path tmp = make_temp_name(p, desired);
 
 		std::error_code ec1;
@@ -713,7 +715,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 		std::error_code ec2;
 		fs::rename(tmp, desired, ec2);
 		if (ec2) {
-			// tentative de rollback
+			// Rollback attempt
 			std::error_code ecBack;
 			fs::rename(tmp, p, ecBack);
 
@@ -728,7 +730,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 		return;
 	}
 
-	// Cas normal: collision réelle éventuelle => suffixe si besoin
+	// Normal case: real collision possible -> use suffix if needed
 	target = make_unique_target(desired);
 
 	fs::rename(p, target, ec);
@@ -743,7 +745,7 @@ static void rename_entry(const fs::path& p, Stats& st) {
 	}
 }
 
-// Post-order : renomme le contenu puis le dossier (évite de casser le parcours)
+// Post-order: rename children first, then the folder (avoids breaking traversal)
 static void process_dir(const fs::path& dir, Stats& st, bool is_root = false) {
 	std::error_code ec;
 
@@ -753,7 +755,7 @@ static void process_dir(const fs::path& dir, Stats& st, bool is_root = false) {
 		children.push_back(it->path());
 	}
 	if (ec) {
-		std::cout << "[ERR] Lecture dossier: " << dir.string()
+		std::cout << "[ERR] Reading folder: " << dir.string()
 			<< " | " << ec.message() << "\n";
 		st.errors++;
 		return;
@@ -765,14 +767,14 @@ static void process_dir(const fs::path& dir, Stats& st, bool is_root = false) {
 		bool is_symlink = fs::is_symlink(child, ec2);
 
 		if (!ec2 && is_dir && !is_symlink) {
-			process_dir(child, st, false); // renomme aussi ce dossier à la fin
+			process_dir(child, st, false); // rename this folder at the end
 		}
 		else {
 			rename_entry(child, st);
 		}
 	}
 
-	// Par sécurité, on ne renomme pas la racine
+	// Safety: never rename the root directory itself
 	if (!is_root) {
 		rename_entry(dir, st);
 	}
@@ -788,30 +790,30 @@ int main(int argc, char** argv) {
 	if (argc >= 2) {
 		std::string a = argv[1];
 		if (a == "--help" || a == "-h") {
-			std::cout << "Usage: " << argv[0] << " [chemin]\n";
+			std::cout << "Usage: " << argv[0] << " [path]\n";
 			return 0;
 		}
 		root = fs::path(a);
 	}
 
 	if (!fs::exists(root) || !fs::is_directory(root)) {
-		std::cerr << "Chemin invalide: " << root.string() << "\n";
+		std::cerr << "Invalid path: " << root.string() << "\n";
 		return 1;
 	}
 
-	std::cout << "Racine: " << root.string() << "\n\n";
+	std::cout << "Root: " << root.string() << "\n\n";
 
 	Stats st;
 	process_dir(root, st, true);
 
-	std::cout << "\n--- Resume ---\n"
-		<< "Renommes : " << st.renamed << "\n"
-		<< "Ignores  : " << st.skipped << "\n"
-		<< "Erreurs  : " << st.errors << "\n\n";
+	std::cout << "\n--- Summary ---\n"
+		<< "Renamed : " << st.renamed << "\n"
+		<< "Skipped : " << st.skipped << "\n"
+		<< "Errors  : " << st.errors << "\n\n";
 
-	// Timer 5 secondes (compte à rebours)
+	// 5-second countdown
 	for (int i = 5; i >= 1; --i) {
-		std::cout << "Fin dans " << i << "...\n";
+		std::cout << "Finishing in " << i << "...\n";
 		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
