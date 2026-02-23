@@ -24,6 +24,7 @@
     <ProjectGuid>{9ccc5eec-d44d-445b-8af7-e9e4076f5fea}</ProjectGuid>
     <RootNamespace>RenamerOfFolderAndFileForExtDriveFilmsAndMore</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>CleanMediaRenamer</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
