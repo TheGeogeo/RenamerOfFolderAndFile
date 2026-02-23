@@ -1,0 +1,106 @@
+# ------------------------------------------------------------
+# Visual Studio Community 2022 - C++ Console App (.vcxproj)
+# ------------------------------------------------------------
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio workspace / caches
+.vs/
+*.VC.db
+*.VC.VC.opendb
+ipch/
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Dd]ebugPublic/
+[Rr]eleases/
+[Bb]uild/
+[Bb]uild[Ll]og.*
+
+# CMake (if ever used)
+out/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+CMakeSettings.json
+
+# MSBuild / Intermediate / Logs
+*.tlog
+*.log
+*.ilk
+*.obj
+*.pch
+*.ipdb
+*.iobj
+*.pdb
+*.idb
+*.sbr
+*.tlh
+*.tli
+*.pgc
+*.pgd
+*.rsp
+*.tmp
+*.cache
+*.exe
+*.dll
+*.lib
+*.exp
+
+# Diagnostics / profiling
+*.dmp
+*.dump
+*.pdb
+*.etl
+*.vsp
+*.vspx
+*.psess
+*.sap
+
+# Linker / incremental / symbols
+*.manifest
+*.map
+*.sym
+
+# NuGet (if present)
+packages/
+*.nupkg
+*.snupkg
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+
+# ReSharper / other IDE tools
+_ReSharper*/
+*.DotSettings.user
+
+# clangd / clang tooling (optional)
+.compile_commands.json
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Archives
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
